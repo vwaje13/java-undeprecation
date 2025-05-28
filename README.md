@@ -31,27 +31,9 @@ and then compiles and runs both versions to compare their output.
 
 ## Usage
 
-Simply run the main script without any arguments:
-
+Run the script:
 ```bash
-python main.py
-```
-
-The script will guide you through an interactive process:
-
-1. It will show you a list of Java files found in the `input/` directory and ask you to select one.
-2. It will ask you to select the OLD JDK version (the one your code currently uses).
-3. It will ask you to select the NEW JDK version (the one you want to update to).
-
-After making your selections, the script will:
-1.  Analyze the input Java file using `jdeprscan` for deprecated elements relative to the selected old JDK version.
-2.  Send the code and the list of deprecated elements to Gemini via Vertex AI to get an updated version.
-3.  Save the updated code to the `output/` directory.
-4.  Compile and run the original Java file.
-5.  Compile and run the updated Java file.
-6.  Compare their console outputs and report if they match.
-
-All compilation artifacts and output files will be placed in the `output/` directory.
+insert script here
 
 ## Features
 
