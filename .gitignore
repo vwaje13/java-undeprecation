@@ -40,3 +40,11 @@ htmlcov/
 
 # Logs
 *.log 
+
+#environment variables
+.env
+
+#keys
+gloss-66e23-afbbfdbb51d0.json
+
+/output
