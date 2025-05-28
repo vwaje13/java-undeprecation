@@ -21,7 +21,8 @@ pip install -r requirements.txt
 
 ## Usage
 
-[Add usage instructions here]
+Run the script:
+```bash
 
 ## Features
 
