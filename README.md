@@ -23,6 +23,7 @@ pip install -r requirements.txt
 
 Run the script:
 ```bash
+insert script here
 
 ## Features
 
