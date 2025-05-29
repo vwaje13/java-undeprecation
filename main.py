@@ -329,6 +329,27 @@ def compile_and_run_java(java_file_path, java_code_content, version_label=""):
             # print(f"Cleaning up temporary directory: {temp_dir}")
             shutil.rmtree(temp_dir)
 
+def compute_line_differences(original_output, updated_output):
+    """Computes and returns line-by-line differences between two outputs."""
+    original_lines = original_output.splitlines()
+    updated_lines = updated_output.splitlines()
+    
+    differences = []
+    max_lines = max(len(original_lines), len(updated_lines))
+    
+    for i in range(max_lines):
+        original_line = original_lines[i] if i < len(original_lines) else None
+        updated_line = updated_lines[i] if i < len(updated_lines) else None
+        
+        if original_line != updated_line:
+            differences.append({
+                'line_number': i + 1,
+                'original': original_line,
+                'updated': updated_line
+            })
+    
+    return differences
+
 def test_java_versions(original_file_path, original_java_code, updated_file_path, updated_java_code):
     """Compiles, runs, and compares outputs of original and updated Java code."""
     print("\n--- Testing Original Code ---")
@@ -362,9 +383,17 @@ def test_java_versions(original_file_path, original_java_code, updated_file_path
         print("SUCCESS: Outputs of original and updated code are identical.")
         if original_error or updated_error:
             print("However, note that one or both versions encountered non-critical errors during execution (check logs above).")
-        # print("Output:\\n" + original_output_for_compare if original_output_for_compare.strip() else "[No Stdout]")
     else:
         print("DIFFERENCE DETECTED: Outputs of original and updated code differ.")
+        
+        # Compute and display line differences
+        differences = compute_line_differences(original_output_for_compare, updated_output_for_compare)
+        print("\nLine-by-line differences:")
+        for diff in differences:
+            print(f"\nLine {diff['line_number']}:")
+            print(f"  Original: {diff['original']}")
+            print(f"  Updated:  {diff['updated']}")
+        
         print("\n--- Original Code Output ---")
         print(original_output_for_compare if original_output_for_compare.strip() else "[No Stdout]")
         print("\n--- Updated Code Output ---")
