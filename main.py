@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig
 import glob
+import difflib
+import html
 
 # --- Configuration ---
 # Load environment variables from .env file
@@ -63,21 +65,42 @@ def analyze_with_jdeprscan(java_file_path, release_version):
     release_version: The Java SE release version to check against (e.g., "17").
     """
     print(f"Analyzing {java_file_path} for deprecated APIs against Java {release_version}...")
-    command = ["jdeprscan", "--release", str(release_version), java_file_path]
-    stdout, stderr, returncode = run_command(command)
+    
+    # First, compile the Java file
+    java_dir = os.path.dirname(java_file_path)
+    java_filename = os.path.basename(java_file_path)
+    class_name = os.path.splitext(java_filename)[0]
+    
+    # Compile command
+    compile_cmd = ["javac", java_filename]
+    compile_stdout, compile_stderr, compile_ret = run_command(compile_cmd, working_dir=java_dir)
+    
+    if compile_ret != 0:
+        print(f"Warning: Failed to compile {java_file_path} for jdeprscan analysis")
+        print(f"Compilation errors: {compile_stderr}")
+        return ""
+    
+    # Now run jdeprscan on the compiled class
+    command = ["jdeprscan", "--class-path", ".", "--release", str(release_version), class_name]
+    stdout, stderr, returncode = run_command(command, working_dir=java_dir)
 
-    if returncode != 0 and "java.lang.module.FindException: Module java.se not found" in stderr:
-        print(f"Warning: 'jdeprscan --release {release_version}' failed to find java.se module.")
-        print("This might happen if the JDK used by jdeprscan doesn't have full support for that --release flag.")
-        print("Trying without --release flag, which will use the jdeprscan's own JDK version for analysis.")
-        command = ["jdeprscan", java_file_path] # Fallback
-        stdout, stderr, returncode = run_command(command)
-
-    if stderr and "No class given" not in stderr and "No deprecated API" not in stdout : # jdeprscan outputs "No class given..." to stderr if file has no class
+    if returncode != 0:
+        print(f"Warning: jdeprscan returned error code {returncode}")
+        if stderr:
+            print(f"jdeprscan errors/warnings:\n{stderr}")
+        
+        # Fallback to running jdeprscan without the --release option
+        print(f"Trying jdeprscan without --release flag...")
+        command = ["jdeprscan", "--class-path", ".", class_name] 
+        stdout, stderr, returncode = run_command(command, working_dir=java_dir)
+    
+    if returncode != 0 and stderr:
         print(f"jdeprscan errors/warnings:\n{stderr}")
+    
     if "No deprecated API" in stdout:
         print("jdeprscan found no deprecated API usage.")
         return ""
+    
     return stdout
 
 def get_llm_suggestion(java_code, deprecated_list, target_jdk_version):
@@ -134,6 +157,211 @@ Updated Java code for Java {target_jdk_version}:
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
         return None
+
+def analyze_api_migrations(original_code, updated_code):
+    """
+    Analyzes the code changes to identify and summarize the types of API migrations that occurred.
+    Returns a short description of the migrations.
+    """
+    # Common deprecated APIs and their modern replacements
+    migration_patterns = [
+        # Collections
+        ("Vector", "ArrayList"),
+        ("Hashtable", "HashMap"),
+        ("Stack", "Deque"),
+        ("Enumeration", "Iterator"),
+        ("StringTokenizer", "String.split"),
+        # Date/Time
+        ("new Date(", "LocalDate"),
+        ("SimpleDateFormat", "DateTimeFormatter"),
+        # File IO
+        ("new FileInputStream", "Files.newInputStream"),
+        ("new FileOutputStream", "Files.newOutputStream"),
+        # Thread methods
+        ("Thread.stop", "interrupt mechanism"),
+        # Deprecated methods
+        ("addElement", "add"),
+        ("elements()", "iterator()"),
+    ]
+    
+    migrations_found = []
+    
+    for old_api, new_api in migration_patterns:
+        if old_api in original_code and old_api not in updated_code:
+            if new_api in updated_code and new_api not in original_code:
+                migrations_found.append(f"{old_api} → {new_api}")
+            else:
+                migrations_found.append(f"Removed {old_api}")
+    
+    # Look for import changes
+    original_imports = [line for line in original_code.splitlines() if line.strip().startswith("import ")]
+    updated_imports = [line for line in updated_code.splitlines() if line.strip().startswith("import ")]
+    
+    new_imports = set(updated_imports) - set(original_imports)
+    removed_imports = set(original_imports) - set(updated_imports)
+    
+    if new_imports or removed_imports:
+        imports_summary = []
+        if len(removed_imports) > 0 and len(new_imports) > 0:
+            imports_summary.append(f"Updated imports ({len(removed_imports)} removed, {len(new_imports)} added)")
+        
+        # Look for specific important package migrations
+        if any("java.time" in imp for imp in new_imports):
+            imports_summary.append("Added modern java.time package")
+        if any("java.nio" in imp for imp in new_imports):
+            imports_summary.append("Added modern java.nio file operations")
+        if any("java.util.concurrent" in imp for imp in new_imports):
+            imports_summary.append("Added concurrent collections")
+            
+        if imports_summary:
+            migrations_found.extend(imports_summary)
+    
+    if not migrations_found:
+        return "No significant API migrations detected."
+    
+    return "API Migrations: " + ", ".join(migrations_found)
+
+def generate_code_diff_summary(original_code, updated_code):
+    """
+    Generates a concise summary of changes between original and updated code.
+    Returns a string with the summary of changes.
+    """
+    # Generate API migration summary
+    migration_summary = []
+    
+    # Common deprecated APIs and their modern replacements
+    migration_patterns = [
+        # Collections
+        ("Vector", "ArrayList"),
+        ("Hashtable", "HashMap"),
+        ("Stack", "Deque"),
+        ("Enumeration", "Iterator"),
+        ("StringTokenizer", "String.split"),
+        # Date/Time
+        ("new Date(", "LocalDate"),
+        ("SimpleDateFormat", "DateTimeFormatter"),
+        # File IO
+        ("new FileInputStream", "Files.newInputStream"),
+        ("new FileOutputStream", "Files.newOutputStream"),
+        # Thread methods
+        ("Thread.stop", "interrupt mechanism"),
+        # Deprecated methods
+        ("addElement", "add"),
+        ("elements()", "iterator()"),
+    ]
+    
+    for old_api, new_api in migration_patterns:
+        if old_api in original_code and old_api not in updated_code:
+            if new_api in updated_code and new_api not in original_code:
+                migration_summary.append(f"{old_api} → {new_api}")
+    
+    # Look for import changes
+    original_imports = [line for line in original_code.splitlines() if line.strip().startswith("import ")]
+    updated_imports = [line for line in updated_code.splitlines() if line.strip().startswith("import ")]
+    
+    new_imports = set(updated_imports) - set(original_imports)
+    if any("java.time" in imp for imp in new_imports):
+        migration_summary.append("Added modern java.time package")
+    if any("java.nio" in imp for imp in new_imports):
+        migration_summary.append("Added modern java.nio file operations")
+    
+    original_lines = original_code.splitlines()
+    updated_lines = updated_code.splitlines()
+    
+    # Use difflib to compute the differences
+    diff = list(difflib.unified_diff(
+        original_lines, 
+        updated_lines,
+        n=2,  # Context lines
+        lineterm=''
+    ))
+    
+    # Skip the first two lines which are just headers
+    if len(diff) > 2:
+        diff = diff[2:]
+    
+    # Create a summary of changes
+    changes = []
+    current_section = None
+    line_number = 0
+    
+    for line in diff:
+        if line.startswith('@@'):
+            # Parse the line numbers from the @@ line
+            # Format is @@ -original_start,original_count +updated_start,updated_count @@
+            try:
+                line_info = line.split('@@')[1].strip()
+                original_info = line_info.split(' ')[0]
+                if ',' in original_info:
+                    line_number = int(original_info.split(',')[0][1:])  # Remove the '-' prefix
+                else:
+                    line_number = int(original_info[1:])  # Just the line number without count
+                current_section = []
+                changes.append((line_number, current_section))
+            except (IndexError, ValueError):
+                continue
+        elif current_section is not None:
+            if line.startswith('-'):
+                current_section.append(("removed", line_number, line[1:].strip()))
+                line_number += 1
+            elif line.startswith('+'):
+                current_section.append(("added", line_number, line[1:].strip()))
+            elif line.startswith(' '):
+                line_number += 1
+    
+    # Format the changes into a readable summary
+    summary_lines = ["Summary of Changes:"]
+    
+    # Add API migration summary if available
+    if migration_summary:
+        summary_lines.append("API Migrations: " + ", ".join(migration_summary))
+        summary_lines.append("")  # Add blank line
+    
+    for start_line, section in changes:
+        if not section:  # Skip empty sections
+            continue
+            
+        # Group related changes
+        imports_changed = False
+        api_changes = []
+        other_changes = []
+        
+        for change_type, line_num, content in section:
+            if "import " in content:
+                imports_changed = True
+            elif change_type in ("removed", "added"):
+                # Look for API method changes
+                if any(api in content for api in ["new ", ".get", ".add", ".create", ".format", "File", "Date", "Vector", "Hashtable", "Stack", "Enumeration", "StringTokenizer"]):
+                    api_changes.append((change_type, line_num, content))
+                else:
+                    other_changes.append((change_type, line_num, content))
+        
+        # Add a section header with context
+        context_line = f"Lines {start_line}-{start_line + len(section)}:"
+        summary_lines.append(context_line)
+        
+        # Report import changes
+        if imports_changed:
+            summary_lines.append("  • Updated import statements")
+            
+        # Report API changes
+        if api_changes:
+            summary_lines.append("  • API changes:")
+            for change_type, line_num, content in api_changes:
+                change_symbol = "-" if change_type == "removed" else "+"
+                summary_lines.append(f"    {change_symbol} Line {line_num}: {content}")
+        
+        # Report other changes
+        if other_changes:
+            summary_lines.append("  • Other changes:")
+            for change_type, line_num, content in other_changes:
+                change_symbol = "-" if change_type == "removed" else "+"
+                summary_lines.append(f"    {change_symbol} Line {line_num}: {content}")
+    
+    if len(summary_lines) == 1:  # Only contains the header
+        return "No significant changes detected."
+    
+    return "\n".join(summary_lines)
 
 def compile_java(java_file_path, output_dir):
     """Compiles a Java file."""
@@ -215,6 +443,141 @@ def get_user_selection(options, prompt_message):
         except ValueError:
             print("Please enter a valid number")
 
+def generate_html_diff(original_code, updated_code, file_name, old_version, new_version):
+    """
+    Generate an HTML file with colorized side-by-side diff view.
+    """
+    original_lines = original_code.splitlines()
+    updated_lines = updated_code.splitlines()
+    
+    # Create the HTML content
+    html_content = [
+        '<!DOCTYPE html>',
+        '<html>',
+        '<head>',
+        f'<title>Java Migration: {file_name} ({old_version} → {new_version})</title>',
+        '<style>',
+        'body { font-family: Arial, sans-serif; margin: 20px; }',
+        '.diff-container { display: flex; }',
+        '.diff-pane { flex: 1; margin: 10px; border: 1px solid #ccc; border-radius: 5px; }',
+        '.diff-header { background-color: #f0f0f0; padding: 10px; border-bottom: 1px solid #ccc; font-weight: bold; }',
+        '.diff-content { padding: 10px; font-family: monospace; white-space: pre; overflow-x: auto; }',
+        '.line-number { color: #999; display: inline-block; width: 3em; text-align: right; margin-right: 1em; }',
+        '.diff-line { padding: 0 5px; margin: 0; }',
+        '.diff-line-added { background-color: #e6ffed; }',
+        '.diff-line-removed { background-color: #ffeef0; }',
+        '.diff-line-changed { background-color: #fffbdd; }',
+        '.summary { margin: 20px 10px; padding: 15px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; }',
+        '.migration-header { margin-top: 5px; font-weight: bold; }',
+        '.migration-item { margin: 5px 0; padding-left: 20px; }',
+        '</style>',
+        '</head>',
+        '<body>',
+        f'<h1>Java Migration: {file_name}</h1>',
+        f'<h2>Java {old_version} → Java {new_version}</h2>'
+    ]
+    
+    # Add the API migration summary
+    migration_summary = []
+    migration_patterns = [
+        ("Vector", "ArrayList"),
+        ("Hashtable", "HashMap"),
+        ("Stack", "Deque"),
+        ("Enumeration", "Iterator"),
+        ("StringTokenizer", "String.split"),
+        ("new Date(", "LocalDate"),
+        ("SimpleDateFormat", "DateTimeFormatter"),
+        ("new FileInputStream", "Files.newInputStream"),
+        ("new FileOutputStream", "Files.newOutputStream"),
+        ("Thread.stop", "interrupt mechanism"),
+        ("addElement", "add"),
+        ("elements()", "iterator()")
+    ]
+    
+    for old_api, new_api in migration_patterns:
+        if old_api in original_code and old_api not in updated_code:
+            if new_api in updated_code and new_api not in original_code:
+                migration_summary.append(f"{old_api} → {new_api}")
+    
+    # Look for import changes
+    original_imports = [line for line in original_code.splitlines() if line.strip().startswith("import ")]
+    updated_imports = [line for line in updated_code.splitlines() if line.strip().startswith("import ")]
+    
+    new_imports = set(updated_imports) - set(original_imports)
+    if any("java.time" in imp for imp in new_imports):
+        migration_summary.append("Added modern java.time package")
+    if any("java.nio" in imp for imp in new_imports):
+        migration_summary.append("Added modern java.nio file operations")
+    
+    # Add the summary section to HTML
+    html_content.append('<div class="summary">')
+    html_content.append('<h3>Migration Summary</h3>')
+    
+    if migration_summary:
+        html_content.append('<div class="migration-header">API Changes:</div>')
+        for item in migration_summary:
+            html_content.append(f'<div class="migration-item">• {html.escape(item)}</div>')
+    else:
+        html_content.append('<p>No significant API migrations detected.</p>')
+    
+    html_content.append('</div>')
+    
+    # Add the diff container
+    html_content.append('<div class="diff-container">')
+    
+    # Original code pane
+    html_content.append('<div class="diff-pane">')
+    html_content.append(f'<div class="diff-header">Original (Java {old_version})</div>')
+    html_content.append('<div class="diff-content">')
+    
+    # Compute the diff
+    matcher = difflib.SequenceMatcher(None, original_lines, updated_lines)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            for i in range(i1, i2):
+                html_content.append(f'<div class="diff-line"><span class="line-number">{i+1}</span>{html.escape(original_lines[i])}</div>')
+        elif tag == 'delete':
+            for i in range(i1, i2):
+                html_content.append(f'<div class="diff-line diff-line-removed"><span class="line-number">{i+1}</span>{html.escape(original_lines[i])}</div>')
+        elif tag == 'replace':
+            for i in range(i1, i2):
+                html_content.append(f'<div class="diff-line diff-line-changed"><span class="line-number">{i+1}</span>{html.escape(original_lines[i])}</div>')
+        elif tag == 'insert':
+            for i in range(i1, i2):
+                if i < len(original_lines):
+                    html_content.append(f'<div class="diff-line"><span class="line-number">{i+1}</span>{html.escape(original_lines[i])}</div>')
+    
+    html_content.append('</div></div>')
+    
+    # Updated code pane
+    html_content.append('<div class="diff-pane">')
+    html_content.append(f'<div class="diff-header">Updated (Java {new_version})</div>')
+    html_content.append('<div class="diff-content">')
+    
+    matcher = difflib.SequenceMatcher(None, original_lines, updated_lines)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            for j in range(j1, j2):
+                html_content.append(f'<div class="diff-line"><span class="line-number">{j+1}</span>{html.escape(updated_lines[j])}</div>')
+        elif tag == 'insert':
+            for j in range(j1, j2):
+                html_content.append(f'<div class="diff-line diff-line-added"><span class="line-number">{j+1}</span>{html.escape(updated_lines[j])}</div>')
+        elif tag == 'replace':
+            for j in range(j1, j2):
+                html_content.append(f'<div class="diff-line diff-line-changed"><span class="line-number">{j+1}</span>{html.escape(updated_lines[j])}</div>')
+        elif tag == 'delete':
+            for j in range(j1, j2):
+                if j < len(updated_lines):
+                    html_content.append(f'<div class="diff-line"><span class="line-number">{j+1}</span>{html.escape(updated_lines[j])}</div>')
+    
+    html_content.append('</div></div>')
+    html_content.append('</div>')  # Close diff-container
+    
+    # Close HTML
+    html_content.append('</body></html>')
+    
+    return '\n'.join(html_content)
+
 def main():
     # Ensure input and output directories exist
     os.makedirs(INPUT_DIR, exist_ok=True)
@@ -265,6 +628,8 @@ def main():
 
     # Define output paths
     updated_java_file_path = os.path.join(OUTPUT_DIR, f"{file_name_no_ext}.java")
+    summary_file_path = os.path.join(OUTPUT_DIR, f"{file_name_no_ext}_changes.txt")
+    html_report_path = os.path.join(OUTPUT_DIR, f"{file_name_no_ext}_report.html")
 
     # 1. Read input Java file
     print(f"\nReading input file: {input_file_path}")
@@ -296,18 +661,62 @@ def main():
         print("Gemini did not return updated code. Exiting.")
         return
 
-    # 4. Save new .java file
-    print(f"\n--- Step 4: Save updated Java code ---")
+    # Generate a summary of changes
+    print("\n--- Summary of Code Changes ---")
+    summary = generate_code_diff_summary(original_java_code, updated_java_code)
+    print(summary)
+
+    # 4. Save new .java file and summary
+    print(f"\n--- Step 4: Save updated Java code and summary ---")
     try:
+        # Save the updated Java code
         with open(updated_java_file_path, "w") as f:
             f.write(updated_java_code)
         print(f"Updated code saved to: {updated_java_file_path}")
+        
+        # Save the summary to a text file
+        with open(summary_file_path, "w") as f:
+            f.write(f"Java Code Migration Summary\n")
+            f.write(f"==========================\n\n")
+            f.write(f"Original file: {input_file_path}\n")
+            f.write(f"Updated file: {updated_java_file_path}\n")
+            f.write(f"Migration: Java {old_jdk_version} → Java {new_jdk_version}\n\n")
+            f.write(summary)
+            f.write("\n\n")
+            
+            # Add the full diff for reference
+            f.write("Detailed Diff\n")
+            f.write("============\n\n")
+            diff = difflib.unified_diff(
+                original_java_code.splitlines(),
+                updated_java_code.splitlines(),
+                fromfile=f"{file_name_no_ext}.java (original)",
+                tofile=f"{file_name_no_ext}.java (updated)",
+                lineterm=''
+            )
+            f.write("\n".join(diff))
+        
+        # Generate and save HTML report with colorized diff
+        html_content = generate_html_diff(
+            original_java_code, 
+            updated_java_code, 
+            file_name_no_ext, 
+            old_jdk_version, 
+            new_jdk_version
+        )
+        with open(html_report_path, "w") as f:
+            f.write(html_content)
+            
+        print(f"Summary saved to: {summary_file_path}")
+        print(f"HTML report with colorized diff saved to: {html_report_path}")
     except Exception as e:
-        print(f"Error writing updated Java file {updated_java_file_path}: {e}")
+        print(f"Error writing files: {e}")
         return
 
     print("\nProcess finished.")
     print(f"\nUpdated Java file is saved at: {updated_java_file_path}")
+    print(f"Changes summary is saved at: {summary_file_path}")
+    print(f"Colorized HTML diff report is saved at: {html_report_path}")
 
 if __name__ == "__main__":
     main() 
