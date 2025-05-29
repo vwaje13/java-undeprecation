@@ -18,6 +18,7 @@ and then compiles and runs both versions to compare their output.
     ```
     GCP_PROJECT_ID=your_project_id
     VERTEX_API_KEY=your_vertex_api_key
+    GOOGLE_APPLICATION_CREDENTIALS=your_application_credentials
     ```
 
 ## Setup
