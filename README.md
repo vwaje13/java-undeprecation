@@ -1,44 +1,100 @@
-# Java Deprecation Updater
+# Java Modernization Updater
 
-This project takes a Java source file written for an older JDK (e.g., JDK 17), identifies deprecated API usage,
-uses Google's Vertex AI (Gemini) to rewrite the code for a newer JDK (e.g., JDK 21) by replacing deprecated features,
-and then compiles and runs both versions to compare their output.
-
-## Prerequisites
-
-1.  **Python 3.7+**: Make sure you have Python installed.
-2.  **Java Development Kit (JDK)**:
-    *   `jdeprscan`: This tool is part of the JDK (typically found in the `bin` directory). Ensure it's accessible from your terminal. It will be used to identify deprecated APIs based on an older JDK version.
-    *   `javac` and `java`: Ensure these are on your PATH and configured for the target newer JDK version (e.g., JDK 21) for compiling and running the code.
-3.  **Google Cloud Vertex AI Credentials**: The script uses Google's Vertex AI API for accessing Gemini. You need:
-    *   GCP Project ID
-    *   Vertex AI API Key
-    
-    These should be set in the `.env` file:
-    ```
-    GCP_PROJECT_ID=your_project_id
-    VERTEX_API_KEY=your_vertex_api_key
-    GOOGLE_APPLICATION_CREDENTIALS=your_application_credentials
-    ```
-
-## Setup
-
-1.  **Clone the repository (if applicable) or create the project files.**
-2.  **Install Python dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Place your input Java file(s)** in the `input/` directory. The script will automatically create this directory if it doesn't exist.
-
-## Usage
-
-Run the script:
-```bash
-insert script here
+A tool that modernizes Java code for newer JDK versions by identifying deprecated API usage and replacing it with modern equivalents. It uses the Maven Modernizer plugin for analysis and Google's Vertex AI (Gemini) for intelligent code updates.
 
 ## Features
 
-- [Feature 1]
-- [Feature 2]
-- [Feature 3]
+- Analyzes Java code using the Modernizer Maven plugin to identify deprecated API usage
+- Leverages Google's Vertex AI (Gemini) to intelligently update deprecated code
+- Supports modernization to JDK 11, 17, and 21
+- Generates a detailed summary of all changes made during modernization
+
+## Prerequisites
+
+1. **Python 3.7+**: Required to run the script
+2. **Maven**: Required for the Modernizer plugin
+3. **Google Cloud Vertex AI Access**: 
+   - GCP Project ID
+   - Service Account Credentials
+
+## Setup
+
+1. **Clone this repository**
+   ```bash
+   git clone https://github.com/yourusername/java-undeprecation.git
+   cd java-undeprecation
+   ```
+
+2. **Install Python dependencies**
+   ```bash
+   pip install python-dotenv vertexai
+   ```
+
+3. **Configure Google Cloud credentials**
+   
+   Create a `.env` file in the project root with the following:
+   ```
+   GCP_PROJECT_ID=your_project_id
+   GOOGLE_APPLICATION_CREDENTIALS=path/to/your/credentials.json
+   ```
+
+4. **Place Java files for modernization**
+   
+   Put the Java files you want to modernize in the `input/` directory.
+
+## Usage
+
+1. **Run the script**
+   ```bash
+   python main.py
+   ```
+
+2. **Follow the interactive prompts**
+   - Select the Java file to modernize
+   - Choose the target JDK version (11, 17, or 21)
+
+3. **Review the results**
+   
+   After processing, the script will create:
+   - The modernized Java file in the `output/` directory
+   - A detailed report of all changes in `output/[filename]_modernizer_changes.txt`
+
+## How It Works
+
+1. The script analyzes your Java code using the Modernizer Maven plugin
+2. It identifies deprecated APIs and other outdated patterns
+3. The findings are sent to Google's Gemini model along with your code
+4. Gemini intelligently updates the code while preserving functionality
+5. The updated code and a detailed change report are saved to the output directory
+
+## Example
+
+Input Java file with deprecated code:
+```java
+import java.util.Date;
+public class Example {
+    public void legacyMethod() {
+        Date date = new Date();
+        date.getHours(); // Deprecated method
+    }
+}
+```
+
+After modernization to JDK 17:
+```java
+import java.time.LocalDateTime;
+public class Example {
+    public void legacyMethod() {
+        LocalDateTime now = LocalDateTime.now();
+        int hour = now.getHour(); // Modern equivalent
+    }
+}
+```
+
+## Limitations
+
+- Requires Maven to be installed and accessible
+- Requires Google Cloud credentials with Vertex AI access
+- Only analyzes and updates Java source files
+- The quality of modernization depends on the Gemini model's understanding of the code
 
