@@ -263,6 +263,115 @@ def get_user_selection(options, prompt_message):
         except ValueError:
             print("Please enter a valid number")
 
+def compile_and_run_java(java_file_path, java_code_content, version_label=""):
+    """Compiles and runs a single Java file in a temporary directory, returning its stdout or an error message."""
+    print(f"Processing {version_label} version: {java_file_path}")
+    
+    class_name = get_class_name_from_source(java_code_content)
+    if not class_name:
+        return None, f"Could not extract class name from {java_file_path}."
+
+    temp_dir = tempfile.mkdtemp(prefix=f"java_run_{version_label}_")
+    # print(f"Created temporary directory for {version_label} Java execution: {temp_dir}")
+
+    try:
+        base_name = os.path.basename(java_file_path) # e.g., MyClass.java
+        package_as_path = get_package_path(java_code_content) # e.g., com/example or ""
+        
+        # Path to the .java file within the temp_dir, including package structure
+        # e.g., temp_dir/com/example/MyClass.java or temp_dir/MyClass.java
+        java_file_rel_path_in_temp = os.path.join(package_as_path, base_name)
+        full_java_file_path_in_temp = os.path.join(temp_dir, java_file_rel_path_in_temp)
+
+        # Create package directories if they exist
+        if package_as_path:
+            os.makedirs(os.path.dirname(full_java_file_path_in_temp), exist_ok=True)
+        
+        with open(full_java_file_path_in_temp, "w") as f:
+            f.write(java_code_content)
+
+        # Compile: javac is run from temp_dir, refers to file by its relative path within temp_dir
+        # e.g., javac com/example/MyClass.java or javac MyClass.java
+        print(f"Compiling {java_file_rel_path_in_temp} in {temp_dir}...")
+        compile_cmd = ["javac", java_file_rel_path_in_temp]
+        stdout_compile, stderr_compile, returncode_compile = run_command(compile_cmd, working_dir=temp_dir)
+        
+        if returncode_compile != 0:
+            error_msg = f"Compilation failed for {version_label} code ({base_name}).\\nStdout: {stdout_compile}\\nStderr: {stderr_compile}"
+            print(error_msg)
+            return None, error_msg
+        print(f"Compilation successful for {version_label} code.")
+
+        # Run: java is run from temp_dir, refers to class by FQN
+        # e.g., java com.example.MyClass or java MyClass
+        package_name_dotted = package_as_path.replace('/', '.') # com.example or ""
+        fully_qualified_class_name = f"{package_name_dotted}.{class_name}" if package_name_dotted else class_name
+        
+        print(f"Running {fully_qualified_class_name} from {temp_dir}...")
+        run_cmd = ["java", fully_qualified_class_name]
+        # Classpath is implicitly temp_dir because we are running `java` from temp_dir
+        stdout_run, stderr_run, returncode_run = run_command(run_cmd, working_dir=temp_dir)
+        
+        if returncode_run != 0:
+            error_msg = f"Execution failed for {version_label} code ({fully_qualified_class_name}).\\nStdout: {stdout_run}\\nStderr: {stderr_run}"
+            print(error_msg)
+            # Return stdout_run as it might contain partial output before an error
+            return stdout_run, error_msg 
+        
+        print(f"Execution successful for {version_label} code.")
+        return stdout_run, None
+
+    except Exception as e:
+        print(f"Exception in compile_and_run_java for {version_label}: {e}")
+        return None, str(e)
+    finally:
+        if os.path.exists(temp_dir):
+            # print(f"Cleaning up temporary directory: {temp_dir}")
+            shutil.rmtree(temp_dir)
+
+def test_java_versions(original_file_path, original_java_code, updated_file_path, updated_java_code):
+    """Compiles, runs, and compares outputs of original and updated Java code."""
+    print("\n--- Testing Original Code ---")
+    original_output, original_error = compile_and_run_java(original_file_path, original_java_code, "original")
+
+    if original_error and original_output is None : # If error completely prevented output
+        print(f"Error processing original code: {original_error}")
+        print("Cannot compare outputs due to critical error with original code.")
+        return
+    elif original_error: # Error occurred but there might be partial output
+         print(f"Note: Original code execution had errors: {original_error}")
+
+
+    print("\n--- Testing Updated Code ---")
+    updated_output, updated_error = compile_and_run_java(updated_file_path, updated_java_code, "updated")
+
+    if updated_error and updated_output is None: # If error completely prevented output
+        print(f"Error processing updated code: {updated_error}")
+        print("Cannot compare outputs due to critical error with updated code.")
+        return
+    elif updated_error: # Error occurred but there might be partial output
+        print(f"Note: Updated code execution had errors: {updated_error}")
+
+
+    print("\n--- Comparison of Outputs ---")
+    # Ensure outputs are not None before comparison, default to empty string if None (though errors should be caught above)
+    original_output_for_compare = original_output if original_output is not None else ""
+    updated_output_for_compare = updated_output if updated_output is not None else ""
+
+    if original_output_for_compare == updated_output_for_compare:
+        print("SUCCESS: Outputs of original and updated code are identical.")
+        if original_error or updated_error:
+            print("However, note that one or both versions encountered non-critical errors during execution (check logs above).")
+        # print("Output:\\n" + original_output_for_compare if original_output_for_compare.strip() else "[No Stdout]")
+    else:
+        print("DIFFERENCE DETECTED: Outputs of original and updated code differ.")
+        print("\n--- Original Code Output ---")
+        print(original_output_for_compare if original_output_for_compare.strip() else "[No Stdout]")
+        print("\n--- Updated Code Output ---")
+        print(updated_output_for_compare if updated_output_for_compare.strip() else "[No Stdout]")
+        if original_error or updated_error:
+            print("\nNote: One or both versions also encountered errors during execution (check logs above).")
+
 def main():
     # Create directories
     os.makedirs(INPUT_DIR, exist_ok=True)
@@ -354,8 +463,16 @@ def main():
         
         print(f"Updated Java file saved to: {updated_java_file_path}")
         print(f"Modernizer findings and LLM summary saved to: {summary_file_path}")
+
+        # Ask user if they want to run and compare code versions
+        run_tests_choice = input("\nDo you want to compile and run both the original and updated code to check for output differences? (y/n): ").strip().lower()
+        if run_tests_choice == 'y':
+            print("\n--- Step 4: Test Execution Differences ---")
+            test_java_versions(input_file_path, original_java_code, 
+                               updated_java_file_path, updated_java_code)
+
     except Exception as e:
-        print(f"Error writing files: {e}")
+        print(f"Error writing files or testing: {e}")
 
 if __name__ == "__main__":
     main() 
