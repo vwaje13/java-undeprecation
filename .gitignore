@@ -1,50 +1,11 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
 # Virtual Environment
 venv/
-env/
-ENV/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-
-# Logs
-*.log 
 
 #environment variables
 .env
 
 #keys
 gloss-66e23-afbbfdbb51d0.json
-
-/output
