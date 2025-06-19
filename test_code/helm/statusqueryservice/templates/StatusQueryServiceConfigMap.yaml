@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  application.properties: |
+    {{ .Values.statusQueryServiceConfigMap.value }}
+kind: ConfigMap
+metadata:
+  name: statusqueryservice-config
+  namespace: {{ .Values.namespace }}

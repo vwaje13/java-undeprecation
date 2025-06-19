@@ -1,0 +1,10 @@
+productName: "status-query-service"
+productNumber: "CXP 904 3696"
+images:
+  servicemodel:
+    productName: "staus-query-service"
+    productNumber: "CXP 904 3696"
+    registry: REGISTRY
+    repoPath: IMAGE_PATH
+    name: IMAGE_NAME
+    tag: IMAGE_TAG

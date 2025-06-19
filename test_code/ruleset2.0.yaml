@@ -1,0 +1,182 @@
+modelVersion: 2.0
+
+description: ""
+
+docker-images:
+  - adp-rel-auto: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:latest
+  - adp-inca: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-int-helm-chart-auto:latest
+  - py3-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-python3builder:latest
+  - java8: docker.artifactory.rosetta.ericssondevops.com/maven:3.6.3-openjdk-8
+  - sonar-scanner-cli: docker.artifactory.rosetta.ericssondevops.com/sonarsource/sonar-scanner-cli:5.0.1
+
+
+properties:
+  - chart-dir: helm
+  - helm-chart-name: ${env.HELM_CHART_NAME}
+  - helm-chart-drop-repo: ${env.GROUP_HELM_CHART_DROP_REPO}/${env.CI_PROJECT_NAME}/
+  - image-name: ${env.IMAGE_NAME}
+  - image-repo: sd-mana-tmo-eda-geo-red-docker.artifactory.rosetta.ericssondevops.com
+  - image-path: sd-mana-tmo-geored/staging
+  
+
+env:
+  - ARTIFACT_USER_ID
+  - ARTIFACT_PWD
+  - ART_API_KEY
+  - RELEASE (default=false)
+  - PWD
+  - CI_PIPELINE_ID
+  - CI_PROJECT_NAME
+  - CI_PROJECT_ID
+  - GROUP_GIT_REPO
+  - GROUP_GITLAB_URL
+  - GROUP_HELM_CHART_DROP_REPO
+  - HELM_CHART_NAME
+  - IMAGE_NAME
+  - CXP_NUMBER
+  - CI_COMMIT_BRANCH
+
+var:
+  - commithash
+  - version
+  - chartversion
+  - imageversion
+  - artdir
+
+rules:
+  clean:
+    - task: rm
+      cmd:
+        - rm -rf .bob/ artifact.properties
+
+  init:
+    - task: init
+      docker-image: adp-rel-auto
+      cmd: 
+        - generate-version --debug --is-release ${env.RELEASE} --output version > .bob/var.version
+        - git rev-parse --short HEAD > .bob/var.commithash
+        - cat .bob/var.version > .bob/var.imageversion
+        - cat .bob/var.version | sed 's/[.]//3'   > .bob/var.chartversion
+        - echo "imageversion ${var.imageversion}"
+        - echo "chartversion ${var.chartversion}"
+        
+    - task: create-branch-folder
+      cmd:
+        - echo "eda-geored-dev-replica" > .bob/var.artdir
+        - echo "${env.CI_COMMIT_BRANCH}" | tr '[A-Z]' '[a-z]'
+        - if [[  $( echo "${env.CI_COMMIT_BRANCH}" | tr [A-Z] [a-z] )  == *"integration"* ]]; then  echo "eda-geored-integration" > .bob/var.artdir ; fi;
+        - if [[  $( echo "${env.CI_COMMIT_BRANCH}" | tr [A-Z] [a-z] )  == *"release"* ]]; then  echo "eda-geored-release" > .bob/var.artdir ; fi;
+        - if [[  $( echo "${env.CI_COMMIT_BRANCH}" | tr [A-Z] [a-z] )  == *"performance"* ]]; then  echo "eda-geored-perf" > .bob/var.artdir ; fi;
+        - echo "artdir ${var.artdir}"  
+
+  init-drop:
+    - task: init-drop
+      docker-image: adp-rel-auto
+      cmd: 
+        - generate-version --debug --is-release ${env.RELEASE} --output version > .bob/var.version
+        - git rev-parse --short HEAD > .bob/var.commithash
+        - cat ./VERSION_PREFIX > .bob/var.version
+        - cat .bob/var.version > .bob/var.imageversion
+        - cat .bob/var.version | sed 's/[-]//' | sed 's/[.]/-/3'  > .bob/var.chartversion
+        - echo "version ${var.version}"
+        - echo "chartversion ${var.chartversion}"
+        - echo "imageversion ${var.imageversion}"
+        - echo "chartversion ${var.chartversion}"
+
+    - task: create-branch-folder
+      cmd:
+        - echo "eda-geored-release" > .bob/var.artdir
+#        - echo "${env.CI_COMMIT_BRANCH}" | tr '[A-Z]' '[a-z]'
+#        - if [[  $( echo "${env.CI_COMMIT_BRANCH}" | tr [A-Z] [a-z] )  == *"integration"* ]]; then  echo "eda-geored-integration" > .bob/var.artdir ; fi;
+#        - if [[  $( echo "${env.CI_COMMIT_BRANCH}" | tr [A-Z] [a-z] )  == *"release"* ]]; then  echo "eda-geored-release" > .bob/var.artdir ; fi;
+#        - if [[  $( echo "${env.CI_COMMIT_BRANCH}" | tr [A-Z] [a-z] )  == *"performance"* ]]; then  echo "eda-geored-perf" > .bob/var.artdir ; fi;
+        - echo "artdir ${var.artdir}"
+
+
+
+  lint:
+    - task: python3-flake
+      docker-image: py3-builder
+      cmd: /bin/bash -c "git ls-files | xargs file -i | grep x-python | cut -f1 -d:| xargs flake8"
+    - task: python3-pylint
+      docker-image: py3-builder
+      cmd: /bin/bash -c "pip3 install requests logging-json pytz apscheduler; git ls-files | xargs file -i | grep x-python | cut -f1 -d:| xargs pylint --persistent=no"
+
+
+  build:
+    - task: mvn-package
+      docker-image: java8
+      docker-flags:
+        - "--volume ${env.PWD}:${env.PWD}"
+        - "--network=host"
+      cmd:
+        - mvn -Duser.home=. clean install -Dbuild.version=${var.version}
+
+
+  code-scan:
+    - task: sonarqube
+      docker-image: sonar-scanner-cli
+      docker-flags:
+        - "--volume ${env.PWD}:${env.PWD}"
+        - "--network=host"
+      cmd:
+      - sonar-scanner
+    
+  image:
+    - task: image
+      cmd: 
+        - docker build . --file docker/Dockerfile --tag ${image-repo}/${image-path}/${image-name}:${var.imageversion}; 
+        - pwd; 
+        - docker save -o .bob/${image-name}-${var.imageversion}.tar ${image-repo}/${image-path}/${image-name}:${var.imageversion};
+    
+  package:
+    - task: package
+      docker-image: adp-rel-auto
+      cmd: 
+        - helm-package -f ${chart-dir}/${helm-chart-name} -u ${env.ARTIFACT_USER_ID} -t ${env.ARTIFACT_PWD} 
+          -v ${var.chartversion} 
+          -a ${var.imageversion} 
+          -r values.yaml:IMAGE_PATH=${image-path} 
+          -r values.yaml:IMAGE_NAME=${image-name} 
+          -r values.yaml:IMAGE_TAG=${var.imageversion}  
+          -r eric-product-info.yaml:REGISTRY=${image-repo} 
+          -r eric-product-info.yaml:IMAGE_PATH=${image-path} 
+          -r eric-product-info.yaml:IMAGE_NAME=${image-name} 
+          -r eric-product-info.yaml:IMAGE_TAG=${var.imageversion}
+
+
+  publish-drop:
+    - task: publish-image
+      cmd: 
+        - /bin/bash -c "pwd; docker load -i .bob/${image-name}-${var.imageversion}.tar; docker push ${image-repo}/${image-path}/${image-name}:${var.imageversion}"
+    - task: publish-helm    
+      docker-image: adp-rel-auto
+      cmd: upload_file.sh -r ${helm-chart-drop-repo} -f .bob/${helm-chart-name}-${var.chartversion}.tgz -t ${env.ARTIFACT_PWD} --overwrite true
+
+
+  publish-generic:
+    - task: rename-artifacts
+      cmd:
+        - ls -ltr .bob/
+        - cp .bob/${image-name}-${var.imageversion}.tar        ${env.CXP_NUMBER}_eda2_geored_${env.CI_PROJECT_NAME}_image-${var.version}_$(date +%Y%m%d).tar.gz 
+        - cp .bob/${helm-chart-name}-${var.chartversion}.tgz   ${env.CXP_NUMBER}_eda2_geored_${env.CI_PROJECT_NAME}_helm-${var.version}_$(date +%Y%m%d).tar.gz 
+        - mv generic_scripts generic_scripts_${var.version}_$(date +%Y%m%d) #Renaming genericscripts folder with genericscripts and add version & date
+        - ls -ltr 
+
+    - task: create-tar
+      cmd: 
+        - mkdir 1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d)
+        - mv ${env.CXP_NUMBER}_eda2_geored_${env.CI_PROJECT_NAME}_image-${var.version}_$(date +%Y%m%d).tar.gz  1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d)
+        - mv ${env.CXP_NUMBER}_eda2_geored_${env.CI_PROJECT_NAME}_helm-${var.version}_$(date +%Y%m%d).tar.gz  1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d)
+        - mv generic_scripts_${var.version}_$(date +%Y%m%d) 1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d) # move genericscripts folder into CXP folder
+        - tar czvf 1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d).tar.gz   1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d)
+        - ls -ltr 
+
+    - task: upload-tar
+      docker-image: adp-rel-auto
+      cmd: upload_file.sh 
+        --filename  1_19089-${env.CXP_NUMBER}_${env.CI_PROJECT_NAME}-ca-geored_${var.version}_$(date +%Y%m%d).tar.gz
+        --api-token ${env.ART_API_KEY}
+        --repository https://artifactory.rosetta.ericssondevops.com/artifactory/sd-mana-tmo-eda-geo-red-generic/${env.CI_PROJECT_NAME}/${var.artdir}/${var.version}
+        --overwrite true
+        #--repository https://artifactory.rosetta.ericssondevops.com/artifactory/sd-mana-tmo-eda-geo-red-generic/${env.CI_PROJECT_NAME}/${env.CI_COMMIT_BRANCH}/${var.version}

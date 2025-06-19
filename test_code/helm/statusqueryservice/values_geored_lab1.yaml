@@ -1,0 +1,248 @@
+#No of replicas
+replicaCount: 1
+
+#namespace details
+namespace: blccdeda01-kafka-main-lab-02-ns
+
+#Deployment name
+name: statusqueryservice-main
+
+#App name
+appname: statusqueryservice
+
+#Container parameters
+container:
+  image:
+    name: blccdeda01-registry.cecc.t-mobile.lab/status-query:1.1.0.0
+  containerName: statusqueryservice-container
+  evn:
+    evnName: WCDBCD_ADMIN_PASSWORD
+    timezone: "America/Los_Angeles"
+    valueFrom:
+      secretKeyRef:
+        name: wcdbcd-admin-credentials
+        key: wcdbcd_admin_password
+        
+        
+nodapp: rack
+nodappValue: developmentlab
+        
+#Template 
+template:
+  metadata:
+    annotations:
+      path: \"/actuator/prometheus\"
+      scrape: \"true\"
+      port: \"8092\"
+      scheme: \"http\"
+      
+ 
+# volumeMounts
+volumeMounts:
+  cassName: cassclicert
+  cassMountPath: /app/cassclicert
+  rootCertName: rootcert
+  rootCertMountPath: /app/rootcert
+  casstruststoreName: cass-truststore-volume
+  casstruststoreMountPath: /app/kafka/truststore_external.jks
+  casstruststoreMountSubPath: truststore_external.jks
+  casskeystoreName: cass-keystore-volume
+  casskeystoreMountPath: /app/kafka/keystore.p12
+  casskeystoreMountSubPath: keystore.p12
+  
+# Volume
+volumes:
+  cassName: cassclicert
+  databaseSecret:
+    secretName: eric-data-wide-column-database-cd-cql-cli-cert
+  rootName: rootcert
+  rootSecre:
+    secretName: eric-sec-sip-tls-trusted-root-cert
+  casstruststoreName: cass-truststore-volume
+  cassTrustStore:
+    secretName: cass-truststore-secret
+  casskeystoreName: cass-keystore-volume
+  cassKeyStore:
+    secretName: cass-keystore-secret 
+
+
+#statusqueryservice Service configuration
+statusqueryservice:
+  name: statusqueryservice
+  allocateLoadBalancerNodePorts: true
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies: IPv4
+  ipFamilyPolicy: SingleStack
+  nodePort: 31244
+  port: 8092
+  protocol: TCP
+  app : statusqueryservice
+  targetPort: 8092
+#  clusterIP: 10.0.134.226
+  sessionAffinity: None
+  type: LoadBalancer
+  addresspool: ccd_app_oam_eda_1
+  loadBalancer:
+    ingress:
+      ip: 10.147.99.56
+      
+ # kafka-truststore-secret Details
+producerTrustSecret:
+  kafkaTruststore: MIIE7gIBAzCCBLoGCSqGSIb3DQEHAaCCBKsEggSnMIIEozCCBJ8GCSqGSIb3DQEHBqCCBJAwggSMAgEAMIIEhQYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQINoSR0nWoLTcCAggAgIIEWMLKKPByTbTG9ddNZndOx0b6NJOIUDM2mvqupa+ILuK5WY6qdR3r5AoTJ+n8SLbhN9prKwvljhiCs+IR1slv3c1ySL3U10S2UQjOWFYZTf5CP5tVYUsMC4c8/vki1jHq5H4Nd9rxIVpWA6InqVW1OfIoGdfi19Gs2zfk4tlWJmzor08lZxEJGPLlVYb6tHiFCKqj/ULr2xJQl/eGnCierT6o0pERIo3O8P5fb+SA4Un5mIpDpmqHMKwqGX9cxFKb7wnktFish1A7Gc3xwhAjl92IRzkre6carsqramMcqClHBCX5ubILbTO5exEKi5okBEgnwKzs3oZnqr5HuDSUMKJruy+qagOi5J9KgC8BEkmQQglV5THlq7CGDJGYrbnNhd2Tmj+2trMOY8WJ4wELJcueiUcZ2EgRiT2Wgge+Wavs92qcd7zkSyN+OQrgDzn8C9Q04x/+RV4h7vmgZJd1D4B3wxO0R6q8aFRjB7eB3cKMAhsS8Djvh9BJmQoIDsPXRdTK29Z/MTgWBdtIIWLh7mH4I9UMoARXc4kI83j5dStHy3P8l6bnt4QQW+yexQtT/cxYYj5zGW6Cx/jL+7xuqhQYO7QwuUIOCkMUBTMWVEGHVJQos78PKhIx0VGEJSRCWNb0eEoig5cQGjUZGNZLPTvpiErFnDi+UgLm/I3hsA6BFftoatNEdefEMXypm/Dc7zuYL02dTZrbXJ+Rn8YRx+LPME4aFgsjkwfbU9/qwe6oNUZTLkmzpmm1RF5Fn2oHdhuSFe9xCDFftqArhdn+3+UHkDp5N4Uwn0kD5w7ejtrbjdB9Q5atjq3rhyV/mlhv507hgiDaiFHS2xZCo89Z8JQy6W81GK3AgF7CPJElB3KWhEwirPqNVTWqO9d4feagMdco0q0IQQUHt7jp2mMDG4QsbVIXs5PU6wTjd25zqoMNXgprziEgV3Q7laOc3LxEPrrbGWrqGTmvytWvIVfKgYeq0OX81FTgS4ChpNkKw468fgoEMXWMpCXMpD4NmXqrHq87SrGk8LPryCT4tb54JA0oiwfx0ncBwIQ5JZ3jEs4jt38gtE5E1uTGD7TPlwcG0Pf4aW98778z/th0QeCG8e2SJJ2Lx3Kz+qEon7+LcltA+deUctRysfp3tNtTFWyXF+D+qrnA2j2kDlf6f0p9+nLCWlTbloyVz5PJufxQ8aD02gIY9swo5LAlkWbFjAqNTRI4DiV10wVqQbdAk+c/rfqoMFInbcFXoWeWI+oRr2P3c/2vQf4uDQcAu39UZvTYGijEd57r8XEXOzmVjqdfjZMGtJ2vO6eucT836+UTETVCOTs8zTh6NezJzpsiKjuGAWHlend7RVpAIqb9oZHQt32jk//WBiQXadbG85Il880v/bUMX+jshSHii31QSmJn5diyNK5sWzTvInwSTDjT1EVeUQA54b67jXScx4dX4ZvjppRouUf7eYKlKHxbU2QDX2Gq/Ooq/830MCswHzAHBgUrDgMCGgQUYcj1T14s3KEEaF7obdvffFcI2pYECPRcdI8qVdc6
+  kind: Secret
+  name: kafka-truststore-secret
+  type: Opaque
+  
+cassandraTrustStoreSecret:
+  truststore_external: MIIE8gIBAzCCBJwGCSqGSIb3DQEHAaCCBI0EggSJMIIEhTCCBIEGCSqGSIb3DQEHBqCCBHIwggRuAgEAMIIEZwYJKoZIhvcNAQcBMGYGCSqGSIb3DQEFDTBZMDgGCSqGSIb3DQEFDDArBBRn2UzIlfySWiV6pOHbfpZFh18M7gICJxACASAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEBp9a+ido75jqRSFwQKRMdOAggPwEbuKINoV+A+bhn0JVZjbA+CqYGV/9fmHCZOd7dRZtbSCON8LoiYlNhUVx1MbUturb2QGCenYXhqDR80Vo0sqQ5G1U6EG+JMDFoRAq3OfaCMZoOAp/11ZEIuaLcBFwP/Q9PB1HXisdhGGT5xQ3/Kw/oiSdVl41rcnQFGSwUzjxoI9/Y2dnGmHxYAq5ONBfqjn4ODg5pUOs2kfG3/NJZoJSt07DkJQBgeKK6xRX5diSXypiWNSllKohutKsWKyHbNhwK5osNQzVjCikM4N/ezRsfpD7beqLKJDVcPASP/UqkqBuZIwl1535YHuVyJpgs8sJZM+6aKlvcMPZ6xxVDtF8wl1mZ74pNwy8ngPrJA02XZ+xkjbQnMv3ygkasr2Ll0TfdavBS6sDEQMHz6laYu6e54T7UutJU9ZjwA2JycQSghyb7WXCttKYkAVJvEy+4GZ+Uy9noAv/Hs+DEo1bJchX9wfqafjvNdjPhJPfKb75i745DTW02x3gEAqykdBs9HolbCW9bIOE+q/UT9hI4iWRNf0SsO3i1fKsWOwCEgQzMS+z2uyk/H/t82f1VQatyWu7b33X0LKAJ0xxBhgzrdOrp+kJeoHGG6HDT52KEa6UElIQfr3mWla/rObJSaz6piNuqu5FKOkWlBA5CaOAU0JwcLPP/VoSHsqX4S8jJTpgu9QPK1yDqlGfXJgliymHLqNnzEHPxSbhQUYm6jlARE5L2cc10DznwCw2CGZ8BSD0jONxSvb+CnQfUrfBVf5T0eNN/KhAz3Yr44fi+//RxRxYqj312SDRlC7dIrlFNdXf439b7iy/XooW4p6+MrPJSwj6w/e5vDjoauLgWgQ/1SlTBmrN3PsOZfzG1GN4Dc5oApx1umZvyymvzZLXg226HcKs6nZCIUXsrt1AhUmcbuFdkHPJHPw1sc4aKdE24fSI3PeEBTpoZSvTL2vyj8lzc3I4eFWhwYOqeEiT+dvZOaXMPvFZA5bvloh/pZQzXUS6Eve3Cn8VwkMgsrZbF4rPFV4B8tI9LNqEDtrByjojaiVN4BmoqjDjTb8Ypg1iMD+VbZJeyoYi8jbyRqPjyMkpWDEhwpEm5EUwkUl1wcVRVqaRjLX+4E6OXYP9GylzZtiIiEjWTiSOqnuXoaGXW65M7LJaP3/DQtt6jQCWqKaO6N9T1Qa6AmtK/F1dVUDyNZb75pAzKiyfhnXo50+TPOWrKQ6yaVCra96DGPZUfdXdxixm7Do1NB367xLEVWG+ZOOwWfRjjjK4d9pMFczmH85jgW1pOU13y79Zif3YtgBxyEEnpVHrjYRwd2bgsVg/zPfA3zwge5EcjtbepUFBgHYATu8ME0wMTANBglghkgBZQMEAgEFAAQgv9AljjUcQ4C0LPrf3u811zt+dNV17lE4GuuQA223krQEFGdX/0Ga0CJNroVrcZiwrASIymRjAgInEA==
+  name: cass-truststore-secret
+
+cassandraKeyStoreSecret:
+  keystore: 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
+  name: cass-keystore-secret
+ 
+ # statusqueryservice
+statusQueryServiceConfigMap:
+   value: 
+    cassandra.ip.address.site1=10.194.82.85
+    cassandra.datacenter.site1=datacenter1
+    cassandra.keyspace.site1=POH
+    cassandra.port.site1=9042
+    cassandra.ip.address.site2=10.194.83.219
+    cassandra.datacenter.site2=datacenter2
+    cassandra.keyspace.site2=POH
+    cassandra.port.site2=9042
+    cassandra.no.of.replica=1
+    check.leader.interval=10000
+    scan.poh.interval=60000
+    delay.indicator.interval=300000
+    polling.interval=60000
+    kafka.thread.corePoolSize=10
+    kafka.thread.maxPoolSize=10
+    kafka.thread.queueCapacity=10
+    management.health.cassandra.enabled=false
+    management.endpoints.web.exposure.include=health,prometheus,info,metrics
+    management.endpoint.health.probes.enabled=true
+    spring.jmx.enabled=true
+    management.endpoints.jmx.exposure.include=*
+    management.endpoint.prometheus.enabled=true
+   configname: statusqueryservice-config
+        
+#Producer Secret
+secret:
+  secretKeyRef:
+    name: wcdbcd-admin-credentials
+    key: wcdbcd_admin_password
+    
+#ConfigMapRoleBinding
+configmaprolebinding:
+  metadata:
+    name: config-map-reader-binding
+  subjects:
+    kind: ServiceAccount
+    name: default
+  roleRef:
+    kind: Role
+    name: config-map-reader
+    apiGroup: rbac.authorization.k8s.io
+    
+# livenessProbe
+livenessProbe:
+  tcpSocketport: 8092
+  initialDelaySeconds: 20
+  periodSeconds: 20
+
+
+
+# readinnessProbe
+readinnessProbe:
+  tcpSocketport: 8092
+  initialDelaySeconds: 20
+  periodSeconds: 20
+
+
+  
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: LoadBalancer
+  port: 8092
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+#resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+resources:  
+  limits:
+    cpu: 2
+    memory: 2Gi
+  requests:
+    cpu: 1
+    memory: 2Gi 
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

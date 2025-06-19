@@ -1,0 +1,187 @@
+image:
+  name: armdocker.rnd.ericsson.se/sandbox/adp-staging/adp-cicd/bob.2.0:2.1.0
+  entrypoint:
+  - ""
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_DDOCKER_HOSTRIVER: overlay
+  DOCKER_TLS_CERTDIR: ""
+  RELEASE_VERSION: "1.1.1.0"
+  ARTIFACTORY_PUBLISH: "false"
+
+
+
+.vars:
+  variables:
+    PROJECT_RUNNER: "sd-mana-tmo-bss-eda-cech032-k8s-glr" #"sd-mana-tmo-bss-ews-cram023-k8s-glr"
+
+services:
+  #- name: docker.artifactory.rosetta.ericssondevops.com/docker:19.03.12-dind
+  - name: docker.artifactory.rosetta.ericssondevops.com/docker:20.10.17-dind
+    entrypoint: ["dockerd-entrypoint.sh", "--tls=false"]
+    alias: docker
+
+before_script:
+  - docker login -u $ARTIFACT_USER_ID -p $ARTIFACT_PWD docker.artifactory.rosetta.ericssondevops.com
+  - docker login -u $ARTIFACT_USER_ID -p $ARTIFACT_PWD sd-mana-tmo-bss-docker.artifactory.rosetta.ericssondevops.com
+  - docker login -u $ARTIFACT_USER_ID -p $ARTIFACT_PWD sd-mana-tmo-eda-geo-red-docker.artifactory.rosetta.ericssondevops.com
+
+stages:
+  - prep
+  - init
+  - lint
+  - build
+  - SAST
+  - image
+  - package
+  - publish
+  - clean
+  - trigger
+
+#workflow:
+#  rules:
+#    - if: '$CI_PIPELINE_SOURCE == "push"'
+#      when: never  # Prevent pipeline run for push event
+#    - when: always # Run pipeline for all other cases
+
+prep:
+  stage: prep
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+    - printenv
+
+
+.clean:
+  stage: clean
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - "/bob/bob clean"
+
+
+
+init:
+  stage: init
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - "export RELEASE=true"
+  - ls -ltr
+  - "/bob/bob -r ruleset2.0.yaml init"
+  artifacts:
+    paths:
+    - artifact.properties
+    - .bob
+  rules:
+   - if: '$CI_COMMIT_TAG == null &&  $ARTIFACTORY_PUBLISH != "true"'
+
+
+init-drop:
+  stage: init
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - "export RELEASE=true"
+  - "/bob/bob -r ruleset2.0.yaml init-drop"
+  - ls -al .bob/
+  artifacts:
+    paths:
+    - .bob
+  rules:
+   - if: '$CI_COMMIT_TAG != null || $ARTIFACTORY_PUBLISH == "true"'
+
+
+
+
+
+
+.lint:
+  stage: lint
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - ls -al .bob/
+  - "/bob/bob lint"
+
+
+build:
+  stage: build
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - "export RELEASE=true"
+  - "/bob/bob -r ruleset2.0.yaml build"
+  artifacts:
+    paths:
+      - target/*  
+      - .bob/*  
+
+
+image-build:
+  stage: image
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - ls -al .bob/
+  - "/bob/bob image"
+  artifacts:
+    paths:
+    - .bob
+
+sonarqube:
+  stage: SAST
+  tags:
+    - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+    - "/bob/bob code-scan"
+  artifacts:
+    paths:
+      - target/*
+  allow_failure: true
+
+
+package:
+  stage: package
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - ls -al .bob/
+  - "/bob/bob package"
+  artifacts:
+    paths:
+    - .bob
+ 
+
+publish-generic:
+  stage: publish
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  before_script:
+    - apk add curl
+  script:
+  - ls -al .bob/
+  - "/bob/bob publish-generic"
+
+
+publish-drop:
+  stage: publish
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - ls -al .bob/
+  - "/bob/bob publish-drop"
+  rules:
+   - if: '$CI_COMMIT_TAG != null || $ARTIFACTORY_PUBLISH == "true"'
+
+
+.trigger:
+  stage: trigger
+  tags:
+  - !reference [.vars, variables, PROJECT_RUNNER]
+  script:
+  - "/bob/bob trigger"
+  - ls -al .bob/
+  only:
+    - master

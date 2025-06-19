@@ -171,36 +171,36 @@ def get_llm_suggestion(java_code, modernizer_findings, target_jdk_version):
     print(f"Asking Gemini to update code for JDK {target_jdk_version}...")
     
     prompt = f"""
-You are a Java expert specializing in migrating code from older Java versions to newer ones, incorporating suggestions from static analysis tools.
-The following Java code needs to be updated to be compatible with Java {target_jdk_version}.
-Modernizer static analysis tool has found the following potential issues or areas for improvement:
-<modernizer_findings>
-{modernizer_findings}
-</modernizer_findings>
+                You are a Java expert specializing in migrating code from older Java versions to newer ones, incorporating suggestions from static analysis tools.
+                The following Java code needs to be updated to be compatible with Java {target_jdk_version}.
+                Modernizer static analysis tool has found the following potential issues or areas for improvement:
+                <modernizer_findings>
+                {modernizer_findings}
+                </modernizer_findings>
 
-Your task is to:
-1. Review the original Java code and the Modernizer findings.
-2. Rewrite the code to be compatible with Java {target_jdk_version}, addressing the issues highlighted by Modernizer and replacing any other deprecated elements with their modern equivalents.
-3. Ensure the core logic and functionality of the code remain unchanged. Do NOT refactor or change the code if it is not strictly necessary for modernization or addressing Modernizer's points.
-4. Provide a brief summary of the changes made, explaining what was deprecated/flagged and what it was replaced with, specifically referencing Modernizer's findings where applicable.
+                Your task is to:
+                1. Review the original Java code and the Modernizer findings.
+                2. Rewrite the code to be compatible with Java {target_jdk_version}, addressing the issues highlighted by Modernizer and replacing any other deprecated elements with their modern equivalents.
+                3. Ensure the core logic and functionality of the code remain unchanged. Do NOT refactor or change the code if it is not strictly necessary for modernization or addressing Modernizer's points.
+                4. Provide a brief summary of the changes made, explaining what was deprecated/flagged and what it was replaced with, specifically referencing Modernizer's findings where applicable.
 
-Please format your response as follows:
+                Please format your response as follows:
 
-<change_summary>
-[Your summary of changes here, referencing Modernizer findings]
-</change_summary>
+                <change_summary>
+                [Your summary of changes here, referencing Modernizer findings]
+                </change_summary>
 
-<updated_code>
-```java
-[Your updated Java code here]
-```
-</updated_code>
+                <updated_code>
+                ```java
+                [Your updated Java code here]
+                ```
+                </updated_code>
 
-Original Java code:
-```java
-{java_code}
-```
-"""
+                Original Java code:
+                ```java
+                {java_code}
+                ```
+            """
     
     try:
         model = GenerativeModel(GEMINI_MODEL)

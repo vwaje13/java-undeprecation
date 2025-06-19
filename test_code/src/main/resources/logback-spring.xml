@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+	<property name="LOGS" value="/statusquery/logs" />
+	<springProperty scope="context" name="application.name"
+		source="spring.application.name" />
+	<springProperty scope="context"
+		name="upgrademaxfilesize" source="logging.rolling.upgrademaxfilesize" />
+	<springProperty scope="context" name="retention"
+		source="logging.rolling.retention" />
+	<springProperty scope="context"
+		name="upgradetotalcapsize"
+		source="logging.rolling.upgradetotalcapsize" />
+	<springProfile name="development">
+		<appender name="Console"
+			class="ch.qos.logback.core.ConsoleAppender">
+			<layout class="ch.qos.logback.classic.PatternLayout">
+				<Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+				</Pattern>
+			</layout>
+		</appender>
+		<appender name="RollingFile"
+			class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<file>${LOGS}/${application.name}.log</file>
+			<rollingPolicy
+				class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+				<!-- rollover daily -->
+				<fileNamePattern>${LOGS}/archived/${application.name}-%d{yyyy-MM-dd}_%i.log
+				</fileNamePattern>
+				<!-- each file should be at most 100MB, keep 60 days worth of history, 
+					but at most 20GB -->
+				<maxFileSize>${upgrademaxfilesize}</maxFileSize>
+				<maxHistory>${retention}</maxHistory>
+				<totalSizeCap>${upgradetotalcapsize}</totalSizeCap>
+			</rollingPolicy>
+			<encoder>
+				<pattern>%msg%n</pattern>
+			</encoder>
+		</appender>
+		<root level="INFO">
+			<appender-ref ref="Console" />
+			<appender-ref ref="RollingFile" />
+		</root>
+	</springProfile>
+	<springProfile name="production">
+		<appender name="RollingFile"
+			class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<file>${LOGS}/${application.name}.log</file>
+			<encoder
+				class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+				<Pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+				</Pattern>
+			</encoder>
+			<rollingPolicy
+				class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+				<fileNamePattern>${LOGS}/archived/${application.name}-%d{yyyy-MM-dd}.log
+				</fileNamePattern>
+			</rollingPolicy>
+		</appender>
+		<root level="INFO">
+			<appender-ref ref="RollingFile" />
+		</root>
+	</springProfile>
+	<springProfile name="staging">
+		<appender name="STDOUT"
+			class="ch.qos.logback.core.ConsoleAppender">
+			<encoder>
+				<pattern>%d{"yyyy-MM-dd HH:mm:ss,SSS"} [%-15.15thread] %-5level
+					[%logger] %msg%n</pattern>
+			</encoder>
+		</appender>
+		<appender name="FILE"
+			class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<file>/reader/logs/proclogReader.log</file>
+			<append>true</append>
+			<rollingPolicy
+				class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+				<fileNamePattern>/reader/logs/proclogReader.log.%i</fileNamePattern>
+				<minIndex>1</minIndex>
+				<maxIndex>10</maxIndex>
+			</rollingPolicy>
+			<triggeringPolicy
+				class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+				<maxFileSize>15MB</maxFileSize>
+			</triggeringPolicy>
+			<encoder class="net.logstash.logback.encoder.LogstashEncoder">
+				<providers>
+					<timestamp>
+						<timeZone>PST</timeZone>
+					</timestamp>
+					<pattern>
+						<pattern>
+							{
+							"level": "%level",
+							"service_id": "proclog-reader",
+							"traceId": "%X{X-B3-TraceId:-}",
+							"spanId": "%X{X-B3-SpanId:-}",
+							"thread": "%thread",
+							"class": "%logger{40}",
+							"message": "%message"
+							}
+						</pattern>
+					</pattern>
+					<stackTrace>
+						<throwableConverter
+							class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+							<maxDepthPerThrowable>30</maxDepthPerThrowable>
+							<maxLength>2048</maxLength>
+							<shortenedClassNameLength>20</shortenedClassNameLength>
+							<rootCauseFirst>true</rootCauseFirst>
+						</throwableConverter>
+					</stackTrace>
+				</providers>
+			</encoder>
+		</appender>
+		<appender name="RollingFileProbeLogs"
+			class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<file>/reader/logs/probe.log</file>
+			<append>true</append>
+			<rollingPolicy
+				class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+				<fileNamePattern>/reader/logs/probe.log.%i</fileNamePattern>
+				<minIndex>1</minIndex>
+				<maxIndex>5</maxIndex>
+			</rollingPolicy>
+			<triggeringPolicy
+				class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+				<maxFileSize>1MB</maxFileSize>
+			</triggeringPolicy>
+			<encoder>
+				<pattern>%msg%n</pattern>
+			</encoder>
+		</appender>
+		<!-- probe logs -->
+		<logger name="Probe" level="info" additivity="false">
+			<appender-ref ref="RollingFileProbeLogs" />
+		</logger>
+		<logger name="com.ericsson" level="INFO" />
+		<!-- ProclogStreamSim related information -->
+		<logger name="com.ericsson.activation.proclogstreamsim"
+			level="INFO" />
+		<root level="INFO">
+			<appender-ref ref="FILE" />
+			<appender-ref ref="STDOUT" />
+		</root>
+	</springProfile>
+</configuration>

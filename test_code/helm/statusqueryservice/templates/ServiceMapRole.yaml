@@ -1,0 +1,12 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: {{ .Values.namespace }}
+  name: service-map-reader-queryservice
+rules:
+- apiGroups: [""]
+  resources: ["services","pods","pods/exec","configmaps","pods/status"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["deployments","deployments/status","statefulsets","statefulsets/status"]
+  verbs: ["*"]

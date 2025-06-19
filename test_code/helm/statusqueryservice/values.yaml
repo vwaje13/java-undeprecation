@@ -1,0 +1,298 @@
+#No of replicas
+replicaCount: 1
+
+#namespace details
+namespace: blccdeda01-kafka-main-lab-01-ns
+
+#Deployment name
+name: statusqueryservice-main
+
+#App name
+appname: statusqueryservice
+
+#Container parameters
+container:
+  registry: blccdeda01-registry.cecc.t-mobile.lab
+  statusqueryimage: IMAGE_PATH/IMAGE_NAME:IMAGE_TAG
+  logshipperimage: proj-adp-log-released/eric-log-shipper-sidecar:10.6.0-6
+  image:
+    pullpolicy: IfNotPresent
+    name: blccdeda01-registry.cecc.t-mobile.lab/status-query:1.1.0.17
+  containerName: statusqueryservice-container
+  evn:
+    evnName: WCDBCD_ADMIN_PASSWORD
+    timezone: "America/Los_Angeles"
+    valueFrom:
+      secretKeyRef:
+        name: wcdbcd-admin-credentials
+        key: wcdbcd_admin_password
+        
+        
+nodapp: rack
+nodappValue: developmentlab
+        
+#Template 
+template:
+  metadata:
+    annotations:
+      path: \"/actuator/prometheus\"
+      scrape: \"true\"
+      port: \"8092\"
+      scheme: \"http\"
+      
+ 
+# volumeMounts
+volumeMounts:
+  cassName: cassclicert
+  cassMountPath: /app/cassclicert
+  rootCertName: rootcert
+  rootCertMountPath: /app/rootcert
+  casstruststoreName: cass-truststore-volume
+  casstruststoreMountPath: /app/kafka/truststore_external.jks
+  casstruststoreMountSubPath: truststore_external.jks
+  casskeystoreName: cass-keystore-volume
+  casskeystoreMountPath: /app/kafka/keystore.p12
+  casskeystoreMountSubPath: keystore.p12
+  basicauthsecretName: query-auth-file
+  
+# Volume
+volumes:
+  cassName: cassclicert
+  databaseSecret:
+    secretName: eric-data-wide-column-database-cd-cql-cli-cert
+  rootName: rootcert
+  rootSecre:
+    secretName: eric-sec-sip-tls-trusted-root-cert
+  casstruststoreName: cass-truststore-volume
+  cassTrustStore:
+    secretName: cass-truststore-secret
+  casskeystoreName: cass-keystore-volume
+  cassKeyStore:
+    secretName: cass-keystore-secret
+  basicauthsecretName: query-auth-file
+  basicAuthSecret:
+    secretName: statusquery-auth
+
+
+#statusqueryservice Service configuration
+statusqueryservice:
+  name: statusqueryservice
+  allocateLoadBalancerNodePorts: true
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies: IPv4
+  ipFamilyPolicy: SingleStack
+  nodePort: 31244
+  port: 8092
+  protocol: TCP
+  app : statusqueryservice
+  targetPort: 8092
+#  clusterIP: 10.0.134.226
+  sessionAffinity: None
+  type: LoadBalancer
+  addresspool: ccd-app-oam-eda-1
+  loadBalancer:
+    ingress:
+      ip: 10.147.99.56
+      
+ # kafka-truststore-secret Details
+producerTrustSecret:
+  kafkaTruststore: MIIE7gIBAzCCBLoGCSqGSIb3DQEHAaCCBKsEggSnMIIEozCCBJ8GCSqGSIb3DQEHBqCCBJAwggSMAgEAMIIEhQYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQINoSR0nWoLTcCAggAgIIEWMLKKPByTbTG9ddNZndOx0b6NJOIUDM2mvqupa+ILuK5WY6qdR3r5AoTJ+n8SLbhN9prKwvljhiCs+IR1slv3c1ySL3U10S2UQjOWFYZTf5CP5tVYUsMC4c8/vki1jHq5H4Nd9rxIVpWA6InqVW1OfIoGdfi19Gs2zfk4tlWJmzor08lZxEJGPLlVYb6tHiFCKqj/ULr2xJQl/eGnCierT6o0pERIo3O8P5fb+SA4Un5mIpDpmqHMKwqGX9cxFKb7wnktFish1A7Gc3xwhAjl92IRzkre6carsqramMcqClHBCX5ubILbTO5exEKi5okBEgnwKzs3oZnqr5HuDSUMKJruy+qagOi5J9KgC8BEkmQQglV5THlq7CGDJGYrbnNhd2Tmj+2trMOY8WJ4wELJcueiUcZ2EgRiT2Wgge+Wavs92qcd7zkSyN+OQrgDzn8C9Q04x/+RV4h7vmgZJd1D4B3wxO0R6q8aFRjB7eB3cKMAhsS8Djvh9BJmQoIDsPXRdTK29Z/MTgWBdtIIWLh7mH4I9UMoARXc4kI83j5dStHy3P8l6bnt4QQW+yexQtT/cxYYj5zGW6Cx/jL+7xuqhQYO7QwuUIOCkMUBTMWVEGHVJQos78PKhIx0VGEJSRCWNb0eEoig5cQGjUZGNZLPTvpiErFnDi+UgLm/I3hsA6BFftoatNEdefEMXypm/Dc7zuYL02dTZrbXJ+Rn8YRx+LPME4aFgsjkwfbU9/qwe6oNUZTLkmzpmm1RF5Fn2oHdhuSFe9xCDFftqArhdn+3+UHkDp5N4Uwn0kD5w7ejtrbjdB9Q5atjq3rhyV/mlhv507hgiDaiFHS2xZCo89Z8JQy6W81GK3AgF7CPJElB3KWhEwirPqNVTWqO9d4feagMdco0q0IQQUHt7jp2mMDG4QsbVIXs5PU6wTjd25zqoMNXgprziEgV3Q7laOc3LxEPrrbGWrqGTmvytWvIVfKgYeq0OX81FTgS4ChpNkKw468fgoEMXWMpCXMpD4NmXqrHq87SrGk8LPryCT4tb54JA0oiwfx0ncBwIQ5JZ3jEs4jt38gtE5E1uTGD7TPlwcG0Pf4aW98778z/th0QeCG8e2SJJ2Lx3Kz+qEon7+LcltA+deUctRysfp3tNtTFWyXF+D+qrnA2j2kDlf6f0p9+nLCWlTbloyVz5PJufxQ8aD02gIY9swo5LAlkWbFjAqNTRI4DiV10wVqQbdAk+c/rfqoMFInbcFXoWeWI+oRr2P3c/2vQf4uDQcAu39UZvTYGijEd57r8XEXOzmVjqdfjZMGtJ2vO6eucT836+UTETVCOTs8zTh6NezJzpsiKjuGAWHlend7RVpAIqb9oZHQt32jk//WBiQXadbG85Il880v/bUMX+jshSHii31QSmJn5diyNK5sWzTvInwSTDjT1EVeUQA54b67jXScx4dX4ZvjppRouUf7eYKlKHxbU2QDX2Gq/Ooq/830MCswHzAHBgUrDgMCGgQUYcj1T14s3KEEaF7obdvffFcI2pYECPRcdI8qVdc6
+  kind: Secret
+  name: kafka-truststore-secret
+  type: Opaque
+  
+cassandraTrustStoreSecret:
+  truststore_external: MIIEswIBAzCCBGwGCSqGSIb3DQEHAaCCBF0EggRZMIIEVTCCBFEGCSqGSIb3DQEHBqCCBEIwggQ+AgEAMIIENwYJKoZIhvcNAQcBMGYGCSqGSIb3DQEFDTBZMDgGCSqGSIb3DQEFDDArBBR5JYkwIH5fAqlJalhgB0EtJMQCHQICJxACASAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEPMBCcjMSNhvz3wPzGdKGdiAggPAIiBcDmkenTHJpz4gjCgfc/QsopOqyA/bIpdWEbvNFxrQGdRra6DyS5lOaxGRYSvNKtExlDTwaGuUH4LCMutOC68/aFMdilSEPF82jICcQGb279DhaMgQ+utMk56xGvUwJ6W0lvdeW4LxGsg7owUy7+X82p9VBmE06MLoE+cfCMJaAb8jEMOj4sp2DyYsG52J8fD9j9X3iqrJsCINlSif4ZgGAaEAQ8/YKImG6M9gmhRWdsifrZlYkfYFem9JIbcVWS0aAqKKlseCxGFkr4pDEc50V/ejxNzUmWmfc2bbvhEngEdDrRyvbNT9Co93gqvTcvOjhBrH/k/g/SARo8FXna9C+dY/iD6lEWR2FSRBVFjAqhNIdamSCWKfVFvvV7grB3IeBxKSkqxdTRboySpM4U/B7OAlFfLiEfIDF/HCouBgxbSayhrqzhXSe+oT8DC2i8ljdudto00gqZC/UEAOA870JNIyhxXqG7QylhrpSJu3ln1JVC/VIiFBacarQlzf2OUXhvmki/LToVvSh5fQviJz0GHqgEP6DknoXg2RG1lWAME+Hbs4HS6tUWvaZQt/w3c9OsRQhM6hpf8WuP+BocklVCGVPOJzWSFG3vPXSiecIemkD3KvbIPARAtKzqNCMI6BqAvxmI4J++izKT/8YQfQ+tbgoqZXYRpW5qMJqaO9ys7osxTYZ0Se+wJjLD5f2DTDH/5ikItM+56t4Zzth1Vy3rI7yfFgswN6XsZ10zM42it/o/vIYF7MKpVnviyVdukCFeBXj1K/kDJAXVgpMdInwdZdVrPbk8Xqgs0R6Y0p29RXeeQ7PU5QCuHF/LwWI6VzEZCN4MKwag0+uuhjHYuq2SmGozoFZoSYZ8uzI72b8Cq6LcPBWkonYTMF8Y5VR4qWppm5I1f0BKWIUWI2XY4fYmLxQy2ccfSigKxSZGIOSt4lE+5KaSawOGR2ZkIa6k4xPGeqvHBLXt1r+aTi474A5jDe2vt9wP6umEcOIb43leAzBW8dwXdl+yF7aWQDspR3IDIEA1gIb+W5JplcaO/A1av/gDyWCUTFHsGvMR3j31VlbfLEqzA8F2unyhnw1YhpTVo+MXEqcl/sdy0aGNnclc+Wzqv5RiCRxIc1vrqVKkcnRCzbAv3Aq8MKa798eWbwqj8kqxazFriyJCdDpuVRvcgLf8AQESdI/S0Y2a7XM6h1ZmGCVPxaR6euPwHUrX0dxJFPMR2EDS+5qtCok172VvXz6IIg+FMpLY1x8eGi+Hn4zmcTyGm7VwZwWJhQMD4wITAJBgUrDgMCGgUABBRNURyqU4s7zixZPLyKato0uPcvQgQUOfI2YJOQwYPuwAbjsa9FYEsnwlsCAwGGoA==
+  name: cass-truststore-secret-statusquery
+
+cassandraKeyStoreSecret:
+  keystore: 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
+  name: cass-keystore-secret-statusquery
+ 
+ # statusqueryservice
+statusQueryServiceConfigMap:
+   value: 
+    cassandra.ip.address.local=10.194.82.66;10.194.82.67;10.194.82.68
+    cassandra.datacenter.local=datacenter1
+    cassandra.keyspace.local=POH
+    cassandra.port.local=9042
+    cassandra.ip.address.remote=110.194.83.216;10.194.83.217;10.194.83.218
+    cassandra.datacenter.remote=datacenter2
+    cassandra.keyspace.remote=POH
+    cassandra.port.remote=9042
+    cassandra.no.of.replica=1
+    kafka.namespace.polaris.site=blccdeda01-kafka-main-lab-01-ns
+    kafka.namespace.titan.site=blccdeda02-kafka-main-lab-01-ns
+    cassandra.namespace.polaris.site=blccdeda01-kafka-main-lab-01-ns
+    cassandra.namespace.titan.site=blccdeda02-kafka-main-lab-01-ns
+    kafka.logger.level=OFF
+    cassandra.logger.level=OFF
+    time.zone.id=America/Los_Angeles
+    logging.level.root=INFO
+   configname: statusqueryservice-config
+
+logconfig:
+  loglevel: INFO
+  retention: 30
+  maxfilesize: 500MB
+  capsize: 10GB
+          
+#Producer Secret
+secret:
+  secretKeyRef:
+    name: wcdbcd-admin-credentials
+    key: wcdbcd_admin_password
+
+#Cluster Role
+cluster:
+  role:
+    name: secret-reader-statusquery
+    releasename: statusqueryservice 
+    
+#clusterRoleBinding    
+clusterrolebinding:
+  metadata:
+    name: secret-reader-binding-statusquery
+  subjects:
+    kind: ServiceAccount
+    name: default
+  roleRef:
+    kind: ClusterRole
+    name: secret-reader-statusquery
+    apiGroup: rbac.authorization.k8s.io 
+    
+#ConfigMapRoleBinding
+configmaprolebinding:
+  metadata:
+    name: configqs-map-reader-binding
+  subjects:
+    kind: ServiceAccount
+    name: statusqueryservice
+  roleRef:
+    kind: Role
+    name: configqs-map-reader
+    apiGroup: rbac.authorization.k8s.io
+    
+# livenessProbe
+livenessProbe:
+  tcpSocketport: 8092
+  initialDelaySeconds: 20
+  periodSeconds: 20
+
+
+
+# readinnessProbe
+readinnessProbe:
+  tcpSocketport: 8092
+  initialDelaySeconds: 20
+  periodSeconds: 20
+
+logshipper:
+  containerName: logshipper
+  volumeMountEricStorageName: eric-log-shipper-sidecar-storage-path
+  ericStorage: /logs
+
+logshipperdim:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 500Mi
+  
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: LoadBalancer
+  port: 8092
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+#resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+resources:  
+  limits:
+    cpu: 2
+    memory: 2Gi
+  requests:
+    cpu: 1
+    memory: 2Gi 
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+  
+servicemaprolebinding:
+  metadata:
+    name: service-map-reader-binding-queryservice
+  subjects:
+    kind: ServiceAccount
+    name: default
+  roleRef:
+    kind: Role
+    name: service-map-reader-queryservice
+    apiGroup: rbac.authorization.k8s.io
+
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  truststore_external.jks: {{ .Values.cassandraTrustStoreSecret.truststore_external }}
+kind: Secret
+metadata:
+  name: {{ .Values.cassandraTrustStoreSecret.name }}
+  namespace: {{ .Values.namespace }}
+type: Opaque

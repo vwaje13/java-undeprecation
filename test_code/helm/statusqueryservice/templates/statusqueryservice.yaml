@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    metallb.universe.tf/address-pool: {{ .Values.statusqueryservice.addresspool }}
+  name: {{ .Values.statusqueryservice.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  allocateLoadBalancerNodePorts: {{ .Values.statusqueryservice.allocateLoadBalancerNodePorts }}
+  externalTrafficPolicy: {{ .Values.statusqueryservice.externalTrafficPolicy }}
+  internalTrafficPolicy: {{ .Values.statusqueryservice.internalTrafficPolicy }}
+  ipFamilies:
+  - {{ .Values.statusqueryservice.ipFamilies }}
+  ipFamilyPolicy:  {{ .Values.statusqueryservice.ipFamilyPolicy }}
+  ports:
+  - port: {{ .Values.statusqueryservice.port }}
+    protocol: {{ .Values.statusqueryservice.protocol }}
+    targetPort: {{ .Values.statusqueryservice.targetPort }}
+  selector:
+    app : {{ .Values.statusqueryservice.app }}
+  sessionAffinity: {{ .Values.statusqueryservice.sessionAffinity }}
+  type: {{ .Values.statusqueryservice.type }}
+#status:
+#  loadBalancer:
+#    ingress:
+#    - ip: {{ .Values.statusqueryservice.loadBalancer.ingress.ip }}

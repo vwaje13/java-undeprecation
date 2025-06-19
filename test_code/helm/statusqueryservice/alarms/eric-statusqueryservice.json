@@ -1,0 +1,13 @@
+[
+  {
+    "faultName": "DatabaseDown",
+    "defaultDescription": "DB Connection lost or down",
+    "defaultExpiration": 900,
+    "defaultSeverity": "Critical",
+    "vendor": 193,
+    "code": 14811931,
+    "category": "CommunicationsAlarm",
+    "probableCause": 22,
+    "specificProblem": "Cassandra StatusQueryService Database Unreachable"
+  }
+]

@@ -1,0 +1,240 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.appname }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.appname }}
+      annotations:
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8092"
+        prometheus.io/scheme: "http"
+        prometheus.io/scrape: "true"
+    spec:
+      nodeSelector:
+        {{ .Values.nodapp }}: {{ .Values.nodappValue }}
+      containers:
+      - image: "{{ .Values.container.registry }}/{{ .Values.container.statusqueryimage }}"
+        imagePullPolicy: {{ .Values.container.image.pullPolicy }}
+        name: {{ .Values.container.containerName }}
+        resources:
+          limits:
+            cpu: {{ .Values.resources.limits.cpu }}
+            memory: {{ .Values.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+        env:
+        - name: {{ .Values.container.evn.evnName }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.container.evn.valueFrom.secretKeyRef.name }}
+              key: {{ .Values.container.evn.valueFrom.secretKeyRef.key }}
+        - name: TZ
+          value: {{ .Values.container.evn.timezone }}
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name  
+        - name: SECRET_NAME_SQ
+          value: {{ .Values.volumes.basicAuthSecret.secretName }} 
+        - name: LOGLEVEL
+          value: "{{ .Values.logconfig.loglevel }}"
+        - name: RETENTION
+          value: "{{ .Values.logconfig.retention }}"
+        - name: MAXFILESIZE
+          value: "{{ .Values.logconfig.maxfilesize }}"
+        - name: CAPSIZE
+          value: "{{ .Values.logconfig.capsize }}"  
+        livenessProbe:
+          tcpSocket:
+            port: {{ .Values.livenessProbe.tcpSocketport }}
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+        readinessProbe:
+          tcpSocket:
+            port: {{ .Values.livenessProbe.tcpSocketport }}
+          initialDelaySeconds: {{ .Values.readinnessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinnessProbe.periodSeconds }} 
+        volumeMounts:
+        - name: {{ .Values.volumeMounts.casstruststoreName }}
+          mountPath: {{ .Values.volumeMounts.casstruststoreMountPath }}
+          subPath: {{ .Values.volumeMounts.casstruststoreMountSubPath }}
+          readOnly: true 
+        - name: {{ .Values.volumeMounts.casskeystoreName }}
+          mountPath: {{ .Values.volumeMounts.casskeystoreMountPath }}
+          subPath: {{ .Values.volumeMounts.casskeystoreMountSubPath }}
+          readOnly: true
+        - name: application-config
+          mountPath: /config
+        - name: {{ .Values.logshipper.volumeMountEricStorageName }}
+          mountPath: /statusquery/logs
+        - name: {{ .Values.volumeMounts.basicauthsecretName }}
+          mountPath: /auth
+        - name: fi-client-cert-volumemount-sq
+          mountPath: /var/run/secrets/fiapi-client-cert
+          readOnly: true
+        - name: tls-client-cert-volumemount-sq
+          mountPath: /var/run/secrets/client-cert
+          readOnly: true
+        - name: tls-trusted-ca-cert-volumemount-sq
+          mountPath: /var/run/secrets/siptls-root
+          readOnly: true
+      - args:
+        - stdout-redirect
+        - -redirect=file
+        - -size=2
+        - -rotate=5
+        - -logfile=/logs/logshipper.log
+        - --
+        - /opt/fluent-bit/scripts/init.sh
+        - --config=/etc/fluent-bit/fluent-bit.conf
+        env:
+        - name: TZ
+          value: "America/Los_Angeles"
+        - name: LOG_LEVEL
+          value: INFO
+        - name: DEPLOYMENT_TYPE
+          value: SIDECAR
+        - name: RUN_AND_EXIT
+          value: "false"
+        - name: SHUTDOWN_DELAY
+          value: "10"
+        - name: LOG_PATH
+          value: /logs
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.uid
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: SERVICE_ID
+          value: {{ .Values.name }}
+        - name: CONTAINER_NAME
+          value: {{ .Values.logshipper.containerName }}
+        image: "{{ .Values.container.registry }}/{{ .Values.container.logshipperimage }}"
+        name: {{ .Values.logshipper.containerName }}
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 2020
+            scheme: HTTP
+          initialDelaySeconds: 1
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 10
+        resources:
+          limits:
+            cpu: {{ .Values.logshipperdim.limits.cpu }}
+            memory: {{ .Values.logshipperdim.limits.memory }}
+          requests:
+            cpu: {{ .Values.logshipperdim.requests.cpu }}
+            memory: {{ .Values.logshipperdim.requests.memory }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsUser: 10001
+          runAsGroup: 10001
+          runAsNonRoot: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: {{ .Values.logshipper.ericStorage }}
+          name: {{ .Values.logshipper.volumeMountEricStorageName }}
+        - mountPath: /run/secrets/sip-tls-trusted-root-cert
+          name: server-ca-certificate
+        - mountPath: /run/secrets/lt-http-client-cert
+          name: lt-http-client-cert
+        - mountPath: /etc/fluent-bit/
+          name: fluentbit-config
+          readOnly: true
+      volumes:
+      - name: {{ .Values.volumes.casstruststoreName }}
+        secret:
+          secretName: {{ .Values.volumes.cassTrustStore.secretName }}    
+      - name: {{ .Values.volumes.casskeystoreName }}
+        secret:
+          secretName: {{ .Values.volumes.cassKeyStore.secretName }}
+      - name: {{ .Values.volumes.basicauthsecretName }}
+        secret:
+          secretName: {{ .Values.volumes.basicAuthSecret.secretName }}
+      - name: application-config
+        configMap:
+          name: statusqueryservice-config
+          items:
+          - key: application.properties
+            path: application.properties
+      - name: {{ .Values.logshipper.volumeMountEricStorageName }}
+        emptyDir:
+          sizeLimit: 50Gi
+      - name: lt-http-client-cert
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: producer-logshipper-lt-http-client-cert
+      - name: tls-trusted-ca-cert-volumemount-sq
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: eric-sec-sip-tls-trusted-root-cert
+      - name: fi-client-cert-volumemount-sq
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: eric-fh-alarm-handler-fi-server-client-secret
+      - name: tls-client-cert-volumemount-sq
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: eric-fh-alarm-handler-tls-client-secret
+      - name: server-ca-certificate
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: eric-sec-sip-tls-trusted-root-cert
+      - name: fluentbit-config
+        configMap:
+          name: transformer-logshipperconf-statusquery
+          defaultMode: 420
+          items:
+          - key: fluent-bit.conf
+            path: fluent-bit.conf
+          - key: inputs.conf
+            path: inputs.conf
+          - key: outputs.conf
+            path: outputs.conf
+          - key: filters.conf
+            path: filters.conf
+          - key: parsers.conf
+            path: parsers.conf
