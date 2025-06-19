@@ -1,0 +1,37 @@
+want to automate test cases and try to run it? 
+or user that wants to see if test cases are there how to run it
+
+ESSVT
+- used for functional testing, sanity checks, any sort of testing
+- when we use essvt, we will get admin access 
+- project catalog is where we upload projects
+    - go in a project, you can see test cases within it (pronect -> project files)
+    - .robot files run the files automatically
+- go to orders to create an order. to run a test. give order name xyz. robot os serial execution, pabot is paralell execution\
+- then go to options, add runtime variables, copu paste from other orders just to test
+- test data type suit: you can give a suit list
+    suppose i want to test some test cases that is part of that files
+    then I need to browse to the proper robot I want to run
+    select the suite 
+- test data type case: I can run individual test cases instead of 20-25 test cases taht are in that one files
+    you can click individual test cases here. 
+- when running create new execution for the order, add some options
+    auto rerun if fail 
+    merge results ??
+    re run failed only
+    you have to run the execution manually
+- when you create a suite, add test cases, options execution
+- create order
+
+in the project overview you can see project files, runner (robot runners)
+- schedulers
+    - in linux system you can set up cron job this is is similar to that
+    - set order of execution and time of execution
+- executions
+- hustory you can see previous executions. Click on the execution you can see overview, report and log
+    - download from history the individual execution
+    - your downloads will be the same as what is in the drive. 
+    - you can see the test execution log as well where the callback chain is 
+    - you can cross reference which test cases/suites got executed
+
+you can also create project and add project files and do everything from there
