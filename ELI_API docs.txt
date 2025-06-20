@@ -1,0 +1,109 @@
+# ELI Gateway API Documentation
+
+## Overview
+Ericsson Language Intelligence (ELI) is a platform that offers a suite of assets [models, datasets, code, services, and APIs] that allows projects at Ericsson to self-serve Telecom-specific Generative AI/LLM capabilities and accelerate the delivery of their AI needs.
+
+## Authentication
+HTTP Bearer authentication is required. Send `Authorization` in the header containing the word `Bearer` followed by a space and a Token String.
+
+## API Endpoints
+
+### Intelligent Search
+
+#### GET /api/v1/rag/search_filters/{index_name}
+Fetch search filters in the specific index of the vector store
+
+This endpoint returns a dictionary representing the search filters in a specific index.
+The response contains the following information: categories, library-id, and library-title.
+Additionally, it includes the status of the search filters if there's a refresh in progress.
+
+##### Parameters:
+`user_id`: The end user ID to be set by system clients.
+`customer_profile_id`: The customer profile ID to be set by system clients.
+
+##### Response:
+The structure of `search_filters` field in the response is:
+```
+{
+    "category-1": {
+        "library-id1": "library-title-1",
+        "library-id2": "library-title-2",
+    },
+    "category-2": {
+        "library-id3": "library-title-3",
+        "library-id4": "library-title-4",
+    }
+}
+```
+
+Use asterisk (*) to query the default index.
+
+#### GET /api/v1/llm/list
+Lists available LLM models in the ELI platform.
+
+### LLM Services
+
+The API includes endpoints for interacting with language models:
+- Chat completion endpoints
+- Model information and capabilities
+- Parameter configurations for model calls
+
+### Embedding Services
+
+The API provides text embedding capabilities:
+
+#### POST /api/v1/embeddings
+Generate vector embeddings for text inputs.
+
+##### Request Body:
+```json
+{
+  "model": "eli-embedding-small-1",
+  "texts": [
+    "string"
+  ],
+  "max_seq_length": 512,
+  "client": "string"
+}
+```
+
+##### Parameters:
+- `model`: The embedding model to use (default: eli-embedding-small-1)
+- `texts`: Array of text strings to embed (required)
+- `max_seq_length`: Maximum sequence length (default: 512)
+- `client`: Client identifier
+
+### RAG (Retrieval Augmented Generation)
+
+The API provides RAG capabilities for:
+- Document search with semantic understanding
+- Context-aware responses based on retrieved information
+- Filtering search results by various parameters
+
+### Common Response Structure
+
+Most API endpoints return responses with this structure:
+
+#### ELIBaseResponse:
+- message: string
+- status: string (Default: success)
+- time_elapsed: string
+
+### Common Parameters
+Parameters used across multiple endpoints include:
+- user_id: The end user ID
+- customer_profile_id: The customer profile ID
+- index_name: Name of the vector index to query
+- cpi_library_id: One or more Library Identities
+- cpi_library_title: One or more Library Titles
+
+### Chat Message Format
+For chat-based endpoints, messages follow this structure:
+- role: string (user/assistant/system)
+- content: string (the actual message content)
+
+## Error Handling
+Validation errors are returned with appropriate status codes and detailed error messages.
+
+## Base URL
+The base URL for the API is: https://portal.eli.gaia.gic.ericsson.se 
